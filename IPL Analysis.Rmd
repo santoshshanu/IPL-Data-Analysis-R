@@ -1,0 +1,538 @@
+---
+title: "IPL Data Analysis"
+author:
+  - Akshat Sharma, BTech(CSE), LPU
+date: "`r Sys.Date()`"
+output: 
+ rmdformats::readthedown:
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message= FALSE, warning= FALSE)
+```
+
+# **Introduction**
+
+Sports analytics is one of the metric which will be done in all types of games all over the world. This will not enhance the prediction of the game, it will help us in analyzing the team performance and also the individual player performance through which team can improve its performance and drive towards the winning line. In this analysis we will be analyzing one of the famous sports cricket and we will be taking data of the IPL game.
+
+##### Loading required packages for the project
+
+```{r}
+# loading required packages
+library(lubridate)
+library(tidyverse)
+library(gapminder)
+library(ggplot2)
+library(knitr)
+library(skimr)
+library(dplyr)
+library(ggthemes)
+library(data.table)
+library(reshape)
+library(insight)
+library(stringr)
+library(plotly)
+```
+
+# **Explaining the data set**
+
+-   Overview Dataset
+
+-   Matches Dataset
+
+-   Deliveries Dataset
+
+-   Deliveries2 Dataset
+
+### **Loading the data sets into r**
+
+```{r}
+
+# reading all the csv files from the data sets
+
+overview <- read.csv("overview.csv",na.strings=c("","NA"))
+matches <- read.csv("matches.csv",na.strings=c("","NA"))
+deliveries <- read.csv("deliveries.csv",na.strings=c("","NA"))
+deliveries2 <- read.csv("deliveries2.csv",na.strings=c("","NA"))
+```
+
+Our data set focuses more on the cricket game, so we want to analyze it in a way that allows us to explore different data sets and make more in-depth observations about the variables and any missing values. We opt for the matches data set for this. Matches was chosen primarily because it is the data set that contains the most accurate information about the important labels that we need to combine to show which teams won more games.
+
+### **Exploring Important Variables in the data sets**
+
+#### **Match Dataset**
+
+```{r paged.print=TRUE}
+
+# matches data set
+
+glimpse(matches)
+skim(matches)
+```
+
+#### **Delivery Dataset**
+
+```{r}
+
+# deliveries data set
+
+glimpse(deliveries)
+skim(deliveries)
+```
+
+# **Missing values, Lubridate, Stringr & Summary Statistics**
+
+### **Dealing with missing values**
+
+We found some missing values in the data set based on the above individual reports. However, because the missing values in the data set are very low and will have no effect on the final visualization, we decided to omit missing values. Creating a new data sets by removing the "NA" values as shown below.
+
+```{r}
+
+# omit missing values for matches dataset
+matches_o <- na.omit(matches) 
+```
+
+After removing the NA values in the data set we again using the glimpse and skim functions to get new insights about the data sets.
+
+```{r}
+
+glimpse(matches_o)
+skim(matches_o)
+```
+
+### **By Using the Lubridate Function created a new column for day**
+
+```{r}
+
+# By using the weekday from the lubridate library we have created a new column to get the game played day
+
+matches$Day <- wday(as_date(matches$date))
+
+```
+
+### **By Using the stringr Function counting the player of the match**
+
+```{r}
+
+# Using str_count we will be checking number of times player of the match repeated
+
+p_o_m <- str_count(matches_o$player_of_match, "S Dhawan")
+
+p_o_m_count <- sum(p_o_m)
+
+p_o_m_count
+
+```
+
+We wonder to check how many times did the player "S Dhawan" won the "player of match". We found it has 4
+
+### **Summary statistics for two quantitative variables**
+
+##### **Statistics for the win_by_runs grouping with variable city**
+
+```{r}
+# summary statistics for the win_by_runs in each city.
+
+data.table(matches_o)[, as.list(summary(win_by_runs)), by="city"]
+```
+
+##### **Statistics for the win_by_wickets grouping with variable team1**
+
+```{r}
+
+#summary statistics for the win_by_wickets for each team.
+
+data.table(matches_o)[, as.list(summary(win_by_wickets)), by="team1"]
+
+```
+
+### **Frequency table for two categorical variables**
+
+```{r paged.print=TRUE}
+
+# Generating the frequency table using table function
+
+freq_table <- table(matches_o$winner, matches_o$toss_decision)
+freq_table
+```
+
+We thought to divided the column "toss_decision" to know which who is the winner and what of decision they took and by what number of runs they won the match.
+
+### **By using pivot_wider**
+
+```{r}
+
+#created a pivot-wider for toss_decision
+
+decision_wider <- matches_o %>%
+  pivot_wider(id_cols= id:toss_winner,
+              names_from = toss_decision, 
+              values_from = win_by_runs, 
+              values_fill = 0)
+decision_wider
+```
+
+# **Data Dictionary**
+
+### **Create a data dictionary showcasing the variables used in your analyses**
+
+```{r}
+
+# create a new data with only one row for data dictionary
+
+mat <- head(matches, 1)
+del <- head(deliveries, 1)
+
+
+# merging two different data into one dataset
+
+Match_Del <- merge(mat,del)
+
+# Extracting only required columns used in the analysis
+
+Match_Del_new <- subset(Match_Del, select=c("win_by_runs", "city", "win_by_wickets", "team1", "team2","winner","toss_decision","toss_winner", "batsman_runs"))
+
+# Creating dictionary table for used variables 
+
+dataDictionary <- tibble(Variable = colnames(Match_Del_new),
+                         Description = c("Winning run by batting team",
+                                         "Matches held in which city",
+                                         "Winning wickets by bowling team", 
+                                         "Teams in Group 1", "Teams in Group 2",
+                                         "Name of the Winning Team", 
+                                         "Decision taken by team either bat or field",
+                                         "Name of the team winning toss", 
+                                         "Number of runs scored by each player"),
+                         Type = map_chr(Match_Del_new, .f = function(x){typeof(x)[1]}))
+
+knitr::kable(dataDictionary)
+
+```
+
+# **Data Visualizations**
+
+### **Top 10 players with highest number of runs**
+
+##### **Bar Chart**
+
+##### **We have created a interactive graph for bar chart using plotly**
+
+For any game particularly for cricket, we need to check which total number of batsman runs. This will help us in analyzing the run strike of each batsman. To do that, we will be using the deliveries data set.
+
+```{r}
+
+# Creating new variable using the deliveries data set
+
+Top_Batsman<- deliveries %>% 
+  group_by(batsman)%>%
+  summarise(runs=sum(batsman_runs)) %>% 
+  arrange((runs)) %>%
+  filter(runs > 3000)
+
+# Creating new variable for top_10 batsman  
+
+Top_10_Batsman <- Top_Batsman %>% 
+  top_n(n=10,wt=runs) %>%
+  ggplot(aes(reorder(batsman, -runs),runs,fill=batsman)) +
+  labs(title = "Top 10 Batsman with highest number of runs in IPL",
+       x= "Batsman",
+       y= "Runs",
+       caption = "Data source: IPL Dataset from Kaggle")+
+  scale_fill_viridis_d()+
+  geom_bar(stat = "identity")+
+  geom_text(aes(label = runs), 
+            vjust = 0.5, size= 3) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.4),
+        legend.position = "none")
+
+ggplotly(Top_10_Batsman)
+```
+
+From the above plot, we can say that player "V Kohli" as the highest number of runs "5434".
+
+### **Total number of matches in each city**
+
+##### **Line Chart**
+
+```{r}
+
+# Creating new dataframe for the line chart
+
+matches_cities <- matches %>% select(id:winner)%>%
+  group_by(city) %>%
+  summarise(Total= n())
+
+# Generating new plot using the above data frame
+
+Different_cities<- matches_cities %>% 
+  filter(!is.na(city)) %>%
+  ggplot()+
+  aes(x= city, y = Total, group= 1)+
+  geom_line(color = "#00abff")+
+  labs(title = "Number of Matches played in different cities",
+       x= "City",
+       y= "Total Matches",
+       caption = "Data source: IPL Dataset from Kaggle")+
+  scale_color_continuous()+
+  geom_text(aes(label = Total), 
+            vjust = -0.125) +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+Different_cities
+```
+
+Above line chart clearly indicates that most number of matches where organized in "Mumbai= 101" and the least number of matches where organized in "Bloemfontein = 2"
+
+### **Teams which have won the highest number of toss**
+
+##### **Pie-Chart**
+
+```{r}
+
+# creating a new variable matches_p to get the highest number of toss winner w.r.t to teams 
+
+matches_p <- matches %>% 
+  group_by(toss_winner)%>%
+  summarise(Percentage= n())
+
+matches_p$Percentage <- round(matches_p$Percentage/sum(matches_p$Percentage)*100, digits = 1)
+
+matches_p_new <- matches_p %>% 
+  top_n(n=10, wt= Percentage)
+  
+# Generating a pie chart for the highest percentage highest number of toss
+
+matches_p_new %>% ggplot()+
+  aes(x = "", y = -Percentage,fill = reorder(toss_winner, -Percentage)) + 
+  geom_bar(stat = "identity", width= 1, color = "black") + 
+  labs(title = "Team with highest toss winning (%)",
+       caption = "Data source: IPL Dataset from Kaggle",
+       fill ="Winning Teams") +
+  coord_polar("y", start = 0) +
+  theme_void()+
+  geom_text(aes(label = Percentage), position = position_stack(vjust = 0.5),
+            color = "black", size=2.9)+
+  scale_color_viridis_d()
+  
+```
+
+The pie chart clearly shows that the team "Mumbai Indians" has won the toss more number of times in comparison of other teams. However, team "Pune" lowest number in winning the toss.
+
+### **Merge at least two tables, and create a plot or table of summary statistics that is a result of the merged data set**
+
+##### **Stacked Bar-chart with Line Graph**
+
+```{r}
+
+# creating two tables from the matches data set
+
+matches_won<-as.data.frame(table(matches$winner))
+matches_played<-as.data.frame(table(matches$team2) + table(matches$team1))
+
+# Re-writing the column names for the above data sets
+
+colnames(matches_won) <- c('Team','Won')
+colnames(matches_played) <- c('Team','Played')
+
+# merging above two data sets with the function merge
+
+matches_w_p <- merge(matches_won, matches_played)
+
+matches_per <- matches_w_p %>%
+  group_by(Team, Won, Played)%>%
+  summarise(Win_Percent = round((Won/Played)*100, digit=0))
+
+matches_per_new <- as.data.frame(matches_per)
+
+# Generating new plot with the merged data set using pivot_longer
+
+# Stacked Bar chart with line graph on top
+
+Stacked_Bar_Line <- matches_per_new %>% pivot_longer(Won:Played)%>% 
+  ggplot(aes(x = Team)) +
+  geom_bar(stat = "identity", aes(y = value,fill = name))+
+  geom_line(aes(y = 3*Win_Percent), size = 0.5, color="red", group = 1)+
+  geom_text(position=position_stack(vjust = .5),
+            aes(x = Team, y = value, label = value), size= 3)+
+  scale_y_continuous(
+    name = "Won & Played",
+    breaks = seq (0, 300, 50),
+    sec.axis = sec_axis(~.*2/3, name="Win Percentage %", breaks = seq (0, 300, 50)))+
+  labs(title = "Total number of Matches Played vs Won by each team",
+       x= "Teams",
+       y= "Count",
+       fill= "",
+       caption = "Data source: IPL Dataset from Kaggle")+
+  scale_fill_manual(values = c("grey47", "grey"))+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.50, size = 5.2), 
+        legend.position = "right")
+
+
+Stacked_Bar_Line
+
+```
+
+According to the stacked bar chart above, the Mumbai Indians have played the most matches and won the most games overall.
+
+### **Count for the number of 50s and 100s in IPL**
+
+##### **Histogram**
+
+```{r}
+# creating histogram to check the 50s and 100s in IPL
+Hist_graph <- hist(matches$win_by_runs,
+                   main="Maximum number of 50s and 100s in IPL game",
+                   xlab="Number of runs in IPL",
+                   ylab= "Frequency of runs",
+                   col = "darkslategray1")
+
+text(Hist_graph$mids,Hist_graph$counts,labels=Hist_graph$counts, adj=c(0.5, -0.5))
+
+```
+
+As a fan of cricket match, it will be very curious to know cumulative number of 50s and 100s throught out the IPL season, for that the above histogram will be helpful. However, from the histogram we can see that the more number in the IPL are reported between the 0 and 10.
+
+# **BootStrap and Monte Carlo Simulation**
+
+### **Implement at least one permutation test based on a traditional hypothesis test, such as a two-sample t-test or a chi-squared test of independence, to test a hypothesis of interest for your data**
+
+```{r}
+
+# calculating the difference in samples test
+
+x <- mean(matches_o$win_by_runs[matches_o$winner=="Sunrisers Hyderabad"])
+y <- mean(matches_o$win_by_runs[matches_o$winner=="Chennai Super Kings"])
+
+# calculating the absolute mean value 
+
+t_sam <- abs(mean(matches_o$win_by_runs[matches_o$winner=="Sunrisers Hyderabad"])-
+                         mean(matches_o$win_by_runs[matches_o$winner=="Chennai Super Kings"]))
+
+# observations of sample
+n <- length(matches_o$winner)
+
+# number of permutations 
+p <- 100
+
+variable <- matches_o$win_by_runs
+
+# Permutation Samples 
+
+PermSamp <- matrix(0, nrow= n, ncol = p)
+
+# Recurring loop for the sample generator 
+
+P_S <- for (i in 1:p) {
+  PermSamp[,i] <- sample(variable, size=n, replace= FALSE)
+  }
+
+Perm_t_sam <- rep(0,p)
+
+# loop to calculate t-test
+
+P_S_1 <- for (i in 1:p) {
+  Perm_t_sam[i] <- abs(mean(PermSamp[matches_o$winner=="Sunrisers Hyderabad",i])-
+                              mean(PermSamp[matches_o$winner=="Chennai Super Kings",i]))
+  }
+
+# Our hypothesis to check the probability of the Permutated test value greater than the observed test value.
+
+Hypothesis_value <- mean((Perm_t_sam >= t_sam)[1:15])*100
+
+```
+
+Our main hypothesis is that there will be minimum percentage of samples which will be greater than the observed sample test value. However, finally we got to know the `r round(Hypothesis_value, digit=1)` % greater than the observed test value for the 15 permutations. Hence we are rejecting our alternate hypothesis which we assumed the values will be "zero".
+
+### **Obtain a parametric and nonparametric bootstrap-estimated standard error for at least one statistic of interest**
+
+### **Non-Parametric Bootstrap- estimated error for chi-square test**
+
+```{r}
+# Simulating data from distribution
+set.seed(1989)
+n<- 30
+
+# Initiating data frame as win_by_wickets
+
+observed <- matches$win_by_wickets
+
+# Sample median
+median(observed)
+
+# Number of bootstrap samples
+B<-10000
+
+# Instantiating matrix for bootstrap samples
+boots <- matrix (NA, nrow=n, ncol=B)
+
+#Sampling with replacement B times
+for(b in 1:B) {
+  boots[, b] <- observed[sample(1:n, size= n, replace = TRUE)]
+}
+
+#Instantiating vector for bootstrap medians
+bootMedians <- vector(length= B)
+
+# Sampling with replacement B times
+for (b in 1:B) {
+boots[, b] <- observed [sample(1:n, size = n, replace = TRUE)]
+}
+
+# Instantiating vector for bootstrap medians
+bootMedians <- vector (length = B)
+
+# Sampling with replacement B times
+for (b in 1:B) {
+bootMedians [b] <- median (boots [, b])
+}
+
+# Nonparametric estimate of the SE of the sample median
+SEestimate <- sd (bootMedians)
+SEestimate
+```
+
+### **Parametric Bootstrap- estimated error for chi-square test**
+
+```{r}
+# Number of bootstrap samples
+B < - 10000
+
+#Instantiating matrix for bootstrap samples
+paramBoots <- matrix(NA, nrow = n, ncol = B)
+XBar <- mean(observed)
+s <- sd(observed)
+
+# Simulating a normal set of n values, B times
+
+for(b in 1:B){
+  paramBoots[, b] <- rnorm(n = n, mean = XBar, sd = s)
+}
+
+# Instantiating vector for bootstrap medians
+bootParamMedians <- vector(length = B)
+
+#Calculating median for each simulated data set
+for(b in 1:B) {
+bootParamMedians[b] <- median(paramBoots[, b])
+}
+
+
+# Nonparametric estimate of the SE of the sample median
+SEparamEstimate <- sd(bootParamMedians)
+SEparamEstimate
+```
+
+
+# **Dashboard Link**
+
+This dashboard provides visualization of top batsman, highest tossing rate and runs summary table by grouping with city name.
+
+*Dashboard Link*: <https://santoshshanu.github.io/IPL-data-analysis-R-dashboard/>
+
+# **Reference**
+
+#### **Some of the codes where referred from the class activity and made changes accordingly to fit the data analysis of our project.**

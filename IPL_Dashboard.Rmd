@@ -1,0 +1,123 @@
+---
+title: "IPL Analysis"
+author: "Akshat Sharma"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(gapminder)
+library(ggplot2)
+library(knitr)
+library(skimr)
+library(dplyr)
+library(flextable)
+library(plotly)
+```
+
+```{r}
+overview <- read.csv("overview.csv",na.strings=c("","NA"))
+matches <- read.csv("matches.csv",na.strings=c("","NA"))
+deliveries <- read.csv("deliveries.csv",na.strings=c("","NA"))
+deliveries2 <- read.csv("deliveries2.csv",na.strings=c("","NA"))
+```
+
+```{r, include = FALSE, eval = TRUE}
+# creating a new variable matches_p to get the highest number of toss winner w.r.t to teams 
+
+matches_p <- matches %>% 
+  group_by(toss_winner)%>%
+  summarise(Percentage= n())
+
+matches_p$Percentage <- round(matches_p$Percentage/sum(matches_p$Percentage)*100, digits = 1)
+
+matches_p_new <- matches_p %>% 
+  top_n(n=10, wt= Percentage)
+  
+# Generating a pie chart for the highest percentage highest number of toss
+
+Piechart <- matches_p_new %>% ggplot()+
+  aes(x = "", y = -Percentage,fill = reorder(toss_winner, -Percentage)) + 
+  geom_bar(stat = "identity", width= 1, color = "black") + 
+  labs(title = "Team with highest toss winning (%)",
+       caption = "Data source: IPL Dataset from Kaggle",
+       fill ="Winning Teams") +
+  coord_polar("y", start = 0) +
+  theme_void()+
+  geom_text(aes(label = Percentage), position = position_stack(vjust = 0.5),
+            color = "black", size=2.9)+
+  scale_color_viridis_d()
+```
+
+```{r,include = FALSE, eval = TRUE}
+# Creating new variable using the deliveries data set
+
+Top_Batsman<- deliveries %>% 
+  group_by(batsman)%>%
+  summarise(runs=sum(batsman_runs)) %>% 
+  arrange((runs)) %>%
+  filter(runs > 3000)
+
+# Creating new variable for top_10 batsman  
+
+Top_10_Batsman <- Top_Batsman %>% 
+  top_n(n=10,wt=runs) %>%
+  ggplot(aes(reorder(batsman, -runs),runs,fill=batsman)) +
+  labs(title = "Top 10 Batsman with highest number of runs in IPL",
+       x= "Batsman",
+       y= "Runs",
+       caption = "Data source: IPL Dataset from Kaggle")+
+  scale_fill_viridis_d()+
+  geom_bar(stat = "identity")+
+  geom_text(aes(label = runs), 
+            vjust = 0.5, size= 3) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.4),
+        legend.position = "none")
+
+```
+
+```{r}
+### Summary table
+
+# Win_by_runs summary for each city
+Runs_Summary <- matches %>% group_by(city) %>% 
+   summarise(Average = mean(win_by_runs, na.rm = TRUE),
+             Median = median(win_by_runs, na.rm = TRUE),
+             Min = min(win_by_runs, na.rm = TRUE),
+             Max = max(win_by_runs, na.rm = TRUE)) %>% 
+  mutate(across(Average:Max, ~ round(.x, 3))) %>% 
+  arrange(desc(Average))
+```
+
+## Introduction {.sidebar}
+
+**Introduction:**
+
+Sports analytics is one of the metric which will be done in all types of games all over the world. This will not enhance the prediction of the game, it will help us in analyzing the team performance and also the individual player performance through which team can improve its performance and drive towards the winning line. In this analysis we will be analyzing one of the famous sports cricket and we will be taking data of the IPL game.
+
+## Row
+
+### Top 10 Batsman
+
+```{r}
+ggplotly(Top_10_Batsman)
+```
+
+## Row {.tabset}
+
+### Highest Toss Winning
+
+```{r}
+Piechart
+```
+
+### Runs Summary
+
+```{r}
+Runs_Summary %>% flextable::flextable()
+```
